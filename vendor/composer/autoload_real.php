@@ -23,10 +23,6 @@ class ComposerAutoloaderInit9f51edd1bef23dcec8854af5657f76c5
         self::$loader = $loader = new \Composer\Autoload\ClassLoader();
         spl_autoload_unregister(array('ComposerAutoloaderInit9f51edd1bef23dcec8854af5657f76c5', 'loadClassLoader'));
 
-        $includePaths = require __DIR__ . '/include_paths.php';
-        array_push($includePaths, get_include_path());
-        set_include_path(join(PATH_SEPARATOR, $includePaths));
-
         $map = require __DIR__ . '/autoload_namespaces.php';
         foreach ($map as $namespace => $path) {
             $loader->set($namespace, $path);

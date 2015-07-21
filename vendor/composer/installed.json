@@ -54,17 +54,17 @@
     },
     {
         "name": "google/apiclient",
-        "version": "1.0.6-beta",
-        "version_normalized": "1.0.6.0-beta",
+        "version": "1.1.4",
+        "version_normalized": "1.1.4.0",
         "source": {
             "type": "git",
             "url": "https://github.com/google/google-api-php-client.git",
-            "reference": "a41a9dc0662e36420030eaab802dbb1f85459479"
+            "reference": "2adb5ba90612858d4add0342eee6b8b9aaca398d"
         },
         "dist": {
             "type": "zip",
-            "url": "https://api.github.com/repos/google/google-api-php-client/zipball/a41a9dc0662e36420030eaab802dbb1f85459479",
-            "reference": "a41a9dc0662e36420030eaab802dbb1f85459479",
+            "url": "https://api.github.com/repos/google/google-api-php-client/zipball/2adb5ba90612858d4add0342eee6b8b9aaca398d",
+            "reference": "2adb5ba90612858d4add0342eee6b8b9aaca398d",
             "shasum": ""
         },
         "require": {
@@ -73,11 +73,11 @@
         "require-dev": {
             "phpunit/phpunit": "3.7.*"
         },
-        "time": "2014-09-30 19:33:59",
+        "time": "2015-05-21 19:35:32",
         "type": "library",
         "extra": {
             "branch-alias": {
-                "dev-master": "1.0.x-dev"
+                "dev-master": "1.1.x-dev"
             }
         },
         "installation-source": "dist",
@@ -87,9 +87,6 @@
             ]
         },
         "notification-url": "https://packagist.org/downloads/",
-        "include-path": [
-            "src/"
-        ],
         "license": [
             "Apache-2.0"
         ],

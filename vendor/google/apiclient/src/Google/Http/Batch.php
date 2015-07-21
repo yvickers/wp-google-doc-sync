@@ -15,12 +15,12 @@
  * limitations under the License.
  */
 
-require_once 'Google/Client.php';
-require_once 'Google/Http/Request.php';
-require_once 'Google/Http/REST.php';
+if (!class_exists('Google_Client')) {
+  require_once dirname(__FILE__) . '/../autoload.php';
+}
 
 /**
- * @author Chirag Shah <chirags@google.com>
+ * Class to handle batched requests to the Google API service.
  */
 class Google_Http_Batch
 {
@@ -125,10 +125,10 @@ class Google_Http_Batch
           }
 
           try {
-            $response = Google_Http_REST::decodeHttpResponse($response);
+            $response = Google_Http_REST::decodeHttpResponse($response, $this->client);
             $responses[$key] = $response;
           } catch (Google_Service_Exception $e) {
-            // Store the exception as the response, so succesful responses
+            // Store the exception as the response, so successful responses
             // can be processed.
             $responses[$key] = $e;
           }
