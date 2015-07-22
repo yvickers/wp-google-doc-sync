@@ -75,7 +75,7 @@
 	</div>
 	<div>
 		<p>
-		<a href="<?php echo admin_url('admin.php?'.http_build_query(array('page'=>$plugin_name.'-configure','type'=>$name))); ?>" class="button"><i class="fa fa-gear fa-lg"></i> Configure Sync</a>
+		<a href="<?php echo admin_url('admin.php?'.http_build_query(array('page'=>$plugin_name,'mode'=>'configure','type'=>$name))); ?>" class="button"><i class="fa fa-gear fa-lg"></i> Configure Sync</a>
 		 -
 		 Adjust the source, tabs and columns for this post type.
 		 </p>

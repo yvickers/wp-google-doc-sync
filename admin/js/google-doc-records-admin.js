@@ -31,6 +31,28 @@
 
 	$(function(){
 		$(".js-tabs").tabs();
+
+		$(".js-repeater-add").click(function(){
+			var template = $("#"+$(this).data('template')),
+				template_html = template.html(),
+				repeater = $('.'+$(this).data('count'));
+
+				template_html = replaceAll(template_html,'{{count}}',repeater.length);
+				var templateVars = $(this).data('templateVars');
+				for(var i in templateVars){
+					template_html = replaceAll(template_html,'{{'+i+'}}',templateVars[i]);
+				}
+
+				repeater.last().after(template_html);
+		});
 	});
+
+function replaceAll(string, find, replace) {
+	return string.replace(new RegExp(escapeRegExp(find), 'g'), replace);
+}
+
+function escapeRegExp(string) {
+	return string.replace(/([.*+?^=!:${}()|\[\]\/\\])/g, "\\$1");
+}
 
 })( jQuery );

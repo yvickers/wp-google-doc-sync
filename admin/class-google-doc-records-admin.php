@@ -79,7 +79,7 @@ class Google_Doc_Records_Admin {
 	 */
 	public function add_pages(){
 		add_options_page('Settings','Google Records','manage_options',$this->plugin_name.'-options-page',array($this,'settings_page'));
-		add_menu_page( 'Google Doc Syncs', 'Google Doc Syncs', 'edit_posts', $this->plugin_name, array($this,'synced_documents') );
+		add_menu_page( 'Google Doc Syncs', 'Google Doc Syncs', 'edit_posts', $this->plugin_name, array($this,'main_switch') );
 		//add_submenu_page( $this->plugin_name, 'Lookup Table', 'Lookup Table', 'edit_posts', $this->plugin_name, array($this,'lookup_page') );
 	}
 
@@ -133,7 +133,163 @@ class Google_Doc_Records_Admin {
 			case 'process':
 				$this->_process_sync();
 			break;
+			case 'configure':
+				$this->_configure_sync();
+			break;
 		}
+	}
+
+	/**
+	 * switch for page output
+	 */
+	function main_switch(){
+		$mode = $this->_request_var('mode');
+		switch($mode){
+			case 'list':
+			default:
+				$this->synced_documents();
+			break;
+			case 'configure':
+				$this->configure_sync();
+			break;
+		}
+	}
+
+	/**
+	 * generate form to setup sync configuration - tab and field mapping
+	 * @return string html
+	 */
+	function configure_sync(){
+		$type = isset($_GET['type'])? trim($_GET['type']):'';
+		if($type == ''){
+			//message
+			return;
+		}
+
+		$sync_settings = maybe_unserialize(get_option($this->plugin_name.'-sync-settings'));
+		if(!is_array($sync_settings)){
+			$sync_settings = array();
+		}
+
+		if(!isset($sync_settings[$type])){
+			//message
+			return;
+		}
+
+		$auto_setting = false;
+		$settings = $sync_settings[$type];
+
+		$settings += array(
+			'master_tab'=>'',
+			'additions_tab'=>'Additions',
+			'corrections_tab'=>'Corrections',
+			'deletions_tab'=>'Deletions',
+		);
+
+		$spreadsheetFeed = $this->_service->getSpreadsheets();
+		$spreadsheet = $spreadsheetFeed->getByTitle($settings['spreadsheet']);
+		$raw_worksheets = $spreadsheet->getWorksheets();
+		$worksheets = array();
+		$first = true;
+		foreach($raw_worksheets as $worksheet){
+			$arr = array(
+				'label'=>$worksheet->getTitle(),
+				'fields'=>array(),
+			);
+/*
+			$cell_feed = $worksheet->getCellFeed(array('min-row'=>1,'max-row'=>1));
+			$cells = $cell_feed->getEntries();
+			foreach($cells as $cell){
+				$arr['fields'][$this->_google_header($cell->getContent())] = $cell->getContent();
+			}
+*/
+			$worksheets[$worksheet->getGid()] = $arr;
+
+			if($first){
+				if($settings['master_tab'] == ''){
+					$settings['master_tab'] = $worksheet->getTitle();
+					$auto_setting = true;
+				}
+			}
+		}
+
+		//general tabs for each individual process
+		$tabs = array(
+			'additions'=>array(
+				'label'=>'Additions',
+				'id_message'=>'This is used to track the WP post id generated for this new record.',
+				'sync_date_message'=>'This is used to track when this record was inserted into Wordpress.',
+				'sync_status_message'=>'This is used as a status indicator.',
+			),
+			'corrections'=>array(
+				'label'=>'Corrections',
+				'id_message'=>'',
+				'sync_date_message'=>'',
+				'sync_status_message'=>'',
+			),
+			'deletions'=>array(
+				'label'=>'Deletions',
+				'id_message'=>'',
+				'sync_date_message'=>'',
+				'sync_status_message'=>'',
+			),
+		);
+
+		include(plugin_dir_path( dirname( __FILE__ ) ).'admin/partials/configuration.php');
+	}
+
+	/**
+	 * convert string into a google header cell - no spaces, all lowercase
+	 * @param  string $text cell label
+	 * @return string       cell name
+	 */
+	function _google_header($text){
+		return strtolower(str_replace(' ','',$text));
+	}
+
+	/**
+	 * save the configuration changes
+	 */
+	function _configure_sync(){
+		if(!isset($_POST['google_doc_record_configure_nonce'])){
+			return;
+		}
+
+		if(!check_admin_referer('configure_sync','google_doc_record_configure_nonce')){
+			//message + redirect
+			return;
+		}
+
+		$type = isset($_GET['type'])? trim($_GET['type']):'';
+		if($type == ''){
+			//message + redirect
+			return;
+		}
+
+		//load current settings
+		$sync_settings = maybe_unserialize(get_option($this->plugin_name.'-sync-settings'));
+		if(!is_array($sync_settings)){
+			$sync_settings = array();
+		}
+
+		if(!isset($sync_settings[$type])){
+			//message + redirect
+			return;
+		}
+
+		//update settings with new values
+		$sync_settings[$type] = $_POST['google_doc_record_configure'] + $sync_settings[$type];
+
+		//save settings
+		update_option($this->plugin_name.'-sync-settings',serialize($sync_settings));
+		$query = array(
+			'page'=>$this->plugin_name,
+			'mode'=>'configure',
+			'type'=>$type,
+			'message'=>'XXX',
+		);
+		wp_redirect(admin_url('admin.php?'.http_build_query($query)));
+		exit;
 	}
 
 	/**
@@ -169,7 +325,7 @@ class Google_Doc_Records_Admin {
 	 */
 	function _add_sync_type(){
 		if(!check_admin_referer('add_sync','google_doc_record_add_nonce')){
-			//redirect?
+			//message + redirect
 			return;
 		}
 
@@ -208,8 +364,6 @@ class Google_Doc_Records_Admin {
 			wp_redirect(admin_url('admin.php?page='.$this->plugin_name.'&message=XXX'));
 			exit;
 		}
-
-		$this->_setup_client();
 
 		switch($process){
 			case 'remove':
@@ -447,7 +601,7 @@ class Google_Doc_Records_Admin {
 
 		wp_enqueue_style( $this->plugin_name, plugin_dir_url( __FILE__ ) . 'css/google-doc-records-admin.css', array(), $this->version, 'all' );
 		wp_enqueue_style( 'prefix-font-awesome', '//maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css', array(), '4.3.0' );
-		//wp_enqueue_style( 'prefix-bootstrap', '//maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css', array(), '3.3.5' );
+		wp_enqueue_style( 'prefix-bootstrap', '//maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css', array(), '3.3.5' );
 	}
 
 	/**
