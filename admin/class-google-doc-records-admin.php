@@ -122,13 +122,16 @@ class Google_Doc_Records_Admin {
 	 */
 	function _synced_documents(){
 		$this->_setup_client();
-		$mode = isset($_POST['mode'])? $_POST['mode']:'list';
+		$mode = $this->_request_var('mode');
 		switch($mode){
 			case 'list':
 			default:
 			break;
 			case 'add':
 				$this->_add_sync_type();
+			break;
+			case 'process':
+				$this->_process_sync();
 			break;
 		}
 	}
@@ -185,7 +188,65 @@ class Google_Doc_Records_Admin {
 		$sync_settings[$post_type['type']] = $post_type;
 		update_option($this->plugin_name.'-sync-settings',serialize($sync_settings));
 
-		wp_redirect(admin_url('admin.php?page='.$this->plugin_name.'&message=101'));
+		wp_redirect(admin_url('admin.php?page='.$this->plugin_name.'&message=XXX'));
+		exit;
+	}
+
+	/**
+	 * determine and perform specified process
+	 */
+	function _process_sync(){
+		$process = isset($_GET['process'])? trim($_GET['process']):'';
+		$type = isset($_GET['type'])? trim($_GET['type']):'';
+		$nonce = isset($_GET['nonce'])? trim($_GET['nonce']):'';
+		if($process == '' || $type == '' || $nonce == ''){
+			wp_redirect(admin_url('admin.php?page='.$this->plugin_name.'&message=XXX'));
+			exit;
+		}
+
+		if(!wp_verify_nonce($nonce,$type.'_'.$process)){
+			wp_redirect(admin_url('admin.php?page='.$this->plugin_name.'&message=XXX'));
+			exit;
+		}
+
+		$this->_setup_client();
+
+		switch($process){
+			case 'remove':
+				$this->_remove_sync_type($type);
+			break;
+			case 'full':
+			break;
+			case 'additions':
+			break;
+			case 'corrections':
+			break;
+			case 'deletions':
+			break;
+			case 'resync':
+			break;
+		}
+
+		echo $process,'<hr>',$type;
+		exit;
+	}
+
+	/**
+	 * remove a post type from the configured syncs array
+	 * @param  string $type post type
+	 */
+	function _remove_sync_type($type){
+		//load current settings
+		$sync_settings = maybe_unserialize(get_option($this->plugin_name.'-sync-settings'));
+		if(!is_array($sync_settings)){
+			$sync_settings = array();
+		}
+
+		unset($sync_settings[$type]);
+
+		//save updated settings
+		update_option($this->plugin_name.'-sync-settings',serialize($sync_settings));
+		wp_redirect(admin_url('admin.php?page='.$this->plugin_name.'&message=XXX'));
 		exit;
 	}
 
@@ -386,6 +447,7 @@ class Google_Doc_Records_Admin {
 
 		wp_enqueue_style( $this->plugin_name, plugin_dir_url( __FILE__ ) . 'css/google-doc-records-admin.css', array(), $this->version, 'all' );
 		wp_enqueue_style( 'prefix-font-awesome', '//maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css', array(), '4.3.0' );
+		//wp_enqueue_style( 'prefix-bootstrap', '//maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css', array(), '3.3.5' );
 	}
 
 	/**
@@ -424,4 +486,13 @@ class Google_Doc_Records_Admin {
 
 	}
 
+	function _request_var($name){
+		if(isset($_POST[$name])){
+			return $_POST[$name];
+		}
+		if(isset($_GET[$name])){
+			return $_GET[$name];
+		}
+		return false;
+	}
 }

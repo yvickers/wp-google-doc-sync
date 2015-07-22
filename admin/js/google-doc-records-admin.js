@@ -29,4 +29,8 @@
 	 * be doing this, we should try to minimize doing that in our own work.
 	 */
 
+	$(function(){
+		$(".js-tabs").tabs();
+	});
+
 })( jQuery );

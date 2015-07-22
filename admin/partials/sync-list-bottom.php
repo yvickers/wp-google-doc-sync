@@ -1,3 +1,4 @@
+</div>
 
 <form method="post">
 	<h3>Add New Record Sync</h3>

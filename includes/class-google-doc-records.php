@@ -153,8 +153,8 @@ class Google_Doc_Records {
 
 		$plugin_admin = new Google_Doc_Records_Admin( $this->get_google_doc_records(), $this->get_version() );
 
-		//$this->loader->add_action( 'admin_enqueue_scripts', $plugin_admin, 'enqueue_styles' );
-		//$this->loader->add_action( 'admin_enqueue_scripts', $plugin_admin, 'enqueue_scripts' );
+		$this->loader->add_action( 'admin_enqueue_scripts', $plugin_admin, 'enqueue_styles' );
+		$this->loader->add_action( 'admin_enqueue_scripts', $plugin_admin, 'enqueue_scripts' );
 
 		$this->loader->add_action('admin_menu',$plugin_admin,'add_pages');
 		$this->loader->add_action('admin_init',$plugin_admin,'init_page');
