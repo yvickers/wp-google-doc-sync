@@ -161,19 +161,9 @@ class Google_Doc_Records_Admin {
 	 */
 	function configure_sync(){
 		$type = isset($_GET['type'])? trim($_GET['type']):'';
-		if($type == ''){
-			//message
-			return;
-		}
-
 		$sync_settings = maybe_unserialize(get_option($this->plugin_name.'-sync-settings'));
 		if(!is_array($sync_settings)){
 			$sync_settings = array();
-		}
-
-		if(!isset($sync_settings[$type])){
-			//message
-			return;
 		}
 
 		$auto_setting = false;
@@ -251,19 +241,14 @@ class Google_Doc_Records_Admin {
 	 * save the configuration changes
 	 */
 	function _configure_sync(){
-		if(!isset($_POST['google_doc_record_configure_nonce'])){
-			return;
-		}
-
-		if(!check_admin_referer('configure_sync','google_doc_record_configure_nonce')){
-			//message + redirect
-			return;
-		}
-
 		$type = isset($_GET['type'])? trim($_GET['type']):'';
 		if($type == ''){
-			//message + redirect
-			return;
+			$query_args = array(
+				'page'=>$this->plugin_name,
+				'message'=>900,
+			);
+			wp_redirect(admin_url('admin.php?'.http_build_query($query_args)));
+			exit;
 		}
 
 		//load current settings
@@ -273,7 +258,20 @@ class Google_Doc_Records_Admin {
 		}
 
 		if(!isset($sync_settings[$type])){
-			//message + redirect
+			$query_args = array(
+				'page'=>$this->plugin_name,
+				'message'=>901,
+				'message-variables'=>array('type'=>$type),
+			);
+			wp_redirect(admin_url('admin.php?'.http_build_query($query_args)));
+			exit;
+		}
+
+		if(!isset($_POST['google_doc_record_configure_nonce'])){
+			return;
+		}
+
+		if(!check_admin_referer('configure_sync','google_doc_record_configure_nonce')){
 			return;
 		}
 
@@ -284,9 +282,10 @@ class Google_Doc_Records_Admin {
 		update_option($this->plugin_name.'-sync-settings',serialize($sync_settings));
 		$query = array(
 			'page'=>$this->plugin_name,
-			'mode'=>'configure',
-			'type'=>$type,
-			'message'=>'XXX',
+			'message'=>200,
+			'message-variables'=>array(
+				'type'=>$sync_settings[$type]['label'],
+			),
 		);
 		wp_redirect(admin_url('admin.php?'.http_build_query($query)));
 		exit;
@@ -325,7 +324,6 @@ class Google_Doc_Records_Admin {
 	 */
 	function _add_sync_type(){
 		if(!check_admin_referer('add_sync','google_doc_record_add_nonce')){
-			//message + redirect
 			return;
 		}
 
@@ -344,7 +342,14 @@ class Google_Doc_Records_Admin {
 		$sync_settings[$post_type['type']] = $post_type;
 		update_option($this->plugin_name.'-sync-settings',serialize($sync_settings));
 
-		wp_redirect(admin_url('admin.php?page='.$this->plugin_name.'&message=XXX'));
+		$query = array(
+			'page'=>$this->plugin_name,
+			'message'=>100,
+			'message-variables'=>array(
+				'type'=>$post_types[$post_type['type']]->label,
+			),
+		);
+		wp_redirect(admin_url('admin.php?'.http_build_query($query)));
 		exit;
 	}
 
@@ -356,13 +361,16 @@ class Google_Doc_Records_Admin {
 		$type = isset($_GET['type'])? trim($_GET['type']):'';
 		$nonce = isset($_GET['nonce'])? trim($_GET['nonce']):'';
 		if($process == '' || $type == '' || $nonce == ''){
-			wp_redirect(admin_url('admin.php?page='.$this->plugin_name.'&message=XXX'));
+			$query = array(
+				'page'=>$this->plugin_name,
+				'message'=>950,
+			);
+			wp_redirect(admin_url('admin.php?'.http_build_query($query)));
 			exit;
 		}
 
 		if(!wp_verify_nonce($nonce,$type.'_'.$process)){
-			wp_redirect(admin_url('admin.php?page='.$this->plugin_name.'&message=XXX'));
-			exit;
+			return;
 		}
 
 		switch($process){
@@ -396,11 +404,19 @@ class Google_Doc_Records_Admin {
 			$sync_settings = array();
 		}
 
+		$label = $sync_settings[$type]['label'];
 		unset($sync_settings[$type]);
 
 		//save updated settings
 		update_option($this->plugin_name.'-sync-settings',serialize($sync_settings));
-		wp_redirect(admin_url('admin.php?page='.$this->plugin_name.'&message=XXX'));
+		$query = array(
+			'page'=>$this->plugin_name,
+			'message'=>101,
+			'message-variables'=>array(
+				'type'=>$label,
+			),
+		);
+		wp_redirect(admin_url('admin.php?'.http_build_query($query)));
 		exit;
 	}
 
@@ -640,6 +656,11 @@ class Google_Doc_Records_Admin {
 
 	}
 
+	/**
+	 * retrieve a variable from post or get
+	 * @param  string $name variable name
+	 * @return mixed       variable value
+	 */
 	function _request_var($name){
 		if(isset($_POST[$name])){
 			return $_POST[$name];

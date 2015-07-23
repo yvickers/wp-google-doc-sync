@@ -71,10 +71,13 @@ class Google_Doc_Records {
 		$this->plugin_name = 'google-doc-records';
 		$this->version = '1.0.0';
 
-		$this->load_dependencies();
-		$this->set_locale();
-		$this->define_admin_hooks();
-		$this->define_public_hooks();
+		if(is_admin()){
+			$this->load_dependencies();
+			$this->set_locale();
+			$this->define_message_hooks();
+			$this->define_admin_hooks();
+			//$this->define_public_hooks();
+		}
 
 	}
 
@@ -96,6 +99,11 @@ class Google_Doc_Records {
 	 */
 	private function load_dependencies() {
 		require_once plugin_dir_path( dirname( __FILE__ ) ) . 'vendor/autoload.php';
+
+		/**
+		 * load messaging class
+		 */
+		require_once plugin_dir_path( dirname( __FILE__ ) ) . 'admin/class-google-doc-records-messages.php';
 
 		/**
 		 * The class responsible for orchestrating the actions and filters of the
@@ -140,6 +148,14 @@ class Google_Doc_Records {
 
 		$this->loader->add_action( 'plugins_loaded', $plugin_i18n, 'load_plugin_textdomain' );
 
+	}
+
+	/**
+	 * register hooks for the messaging class
+	 */
+	private function define_message_hooks(){
+		$plugin_messages = new Google_Doc_Records_Messages( $this->get_google_doc_records(), $this->get_version() );
+		$this->loader->add_action('google_doc_records/display_messages',$plugin_messages,'display');
 	}
 
 	/**

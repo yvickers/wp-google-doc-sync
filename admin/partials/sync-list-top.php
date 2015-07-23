@@ -1,5 +1,8 @@
 <div class="wrap">
+
 <h2>Google Document Sync</h2>
+
+<?php do_action('google_doc_records/display_messages'); ?>
 
 <h3>Sync Processes</h3>
 <div class="js-tabs">

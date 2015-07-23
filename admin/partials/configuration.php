@@ -1,7 +1,10 @@
 <div class="wrap">
+
 	<h2>Sync Configuration - <?php echo $settings['label']; ?></h2>
 
-	<p>Use this form to map your wordpress fields to your google spreadsheet.  
+	<?php do_action('google_doc_records/display_messages'); ?>
+
+	<p>Use this form to map your wordpress fields to your google spreadsheet.
 	If you wish to map this record type to a different spreadsheet, please remove it, then add a new sync with the new spreadsheet.</p>
 
 	<form method="post" class="form-horizontal">
