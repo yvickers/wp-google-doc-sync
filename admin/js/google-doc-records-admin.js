@@ -37,13 +37,17 @@
 				template_html = template.html(),
 				repeater = $('.'+$(this).data('count'));
 
-				template_html = replaceAll(template_html,'{{count}}',repeater.length);
-				var templateVars = $(this).data('templateVars');
-				for(var i in templateVars){
-					template_html = replaceAll(template_html,'{{'+i+'}}',templateVars[i]);
-				}
+			template_html = replaceAll(template_html,'{{count}}',repeater.length);
+			var templateVars = $(this).data('templateVars');
+			for(var i in templateVars){
+				template_html = replaceAll(template_html,'{{'+i+'}}',templateVars[i]);
+			}
 
+			if(repeater.length > 0){
 				repeater.last().after(template_html);
+			}else{
+				$(this).before(template_html);
+			}
 		});
 	});
 
