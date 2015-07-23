@@ -26,6 +26,10 @@ class Google_Doc_Records_Messages{
 			'type'=>'',//success, info, warning, danger
 			'content'=>'',//message content
 		),
+		9=>array(
+			'type'=>'danger',
+			'content'=>'Detected possibilty of losing data during save of settings.  Aborted.',
+		),
 		100=>array(
 			'type'=>'success',
 			'content'=>'Registered new sync spreadsheet for %type$s.',

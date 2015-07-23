@@ -60,6 +60,10 @@ class Google_Doc_Records_Admin {
 		),
 	);
 
+	protected $_sync_settings = false;
+	protected $_type_settings = false;
+	protected $_type = '';
+
 	/**
 	 * Initialize the class and set its properties.
 	 *
@@ -91,6 +95,8 @@ class Google_Doc_Records_Admin {
 			return;
 		}
 
+		$this->_type = isset($_GET['type'])? trim($_GET['type']):$this->_type;
+
 		switch($_GET['page']){
 			case $this->plugin_name:
 				$this->_synced_documents();
@@ -102,6 +108,37 @@ class Google_Doc_Records_Admin {
 				return;
 			break;
 		}
+	}
+
+	/**
+	 * load synchronization settings from database for plugin, set to class variables
+	 */
+	function _load_sync_settings(){
+		$this->_sync_settings = maybe_unserialize(get_option($this->plugin_name.'-sync-settings'));
+		if(!is_array($this->_sync_settings)){
+			$this->_sync_settings = array();
+		}
+
+		if(is_array($this->_sync_settings) && $this->_type != ''){
+			$this->_type_settings = isset($this->_sync_settings[$this->_type])? $this->_sync_settings[$this->_type]:$this->_type;
+		}
+	}
+
+	/**
+	 * save current settings to database
+	 * @return boolean result of udpate_option
+	 */
+	function _update_sync_settings(){
+		if($this->_sync_settings === false){
+			$query_args = array(
+				'page'=>$this->plugin_name,
+				'message'=>9,
+			);
+			wp_redirect(admin_url('admin.php?'.http_build_query($query_args)));
+			exit;
+		}
+
+		return update_option($this->plugin_name.'-sync-settings',serialize($this->_sync_settings));
 	}
 
 	/**
@@ -160,14 +197,8 @@ class Google_Doc_Records_Admin {
 	 * @return string html
 	 */
 	function configure_sync(){
-		$type = isset($_GET['type'])? trim($_GET['type']):'';
-		$sync_settings = maybe_unserialize(get_option($this->plugin_name.'-sync-settings'));
-		if(!is_array($sync_settings)){
-			$sync_settings = array();
-		}
-
 		$auto_setting = false;
-		$settings = $sync_settings[$type];
+		$settings = $this->_type_settings;
 
 		$settings += array(
 			'master_tab'=>'',
@@ -187,6 +218,7 @@ class Google_Doc_Records_Admin {
 				'fields'=>array(),
 			);
 /*
+			@todo	pull in column headers to make spreadsheet fields a dropdown within form
 			$cell_feed = $worksheet->getCellFeed(array('min-row'=>1,'max-row'=>1));
 			$cells = $cell_feed->getEntries();
 			foreach($cells as $cell){
@@ -241,8 +273,7 @@ class Google_Doc_Records_Admin {
 	 * save the configuration changes
 	 */
 	function _configure_sync(){
-		$type = isset($_GET['type'])? trim($_GET['type']):'';
-		if($type == ''){
+		if($this->_type == ''){
 			$query_args = array(
 				'page'=>$this->plugin_name,
 				'message'=>900,
@@ -251,13 +282,9 @@ class Google_Doc_Records_Admin {
 			exit;
 		}
 
-		//load current settings
-		$sync_settings = maybe_unserialize(get_option($this->plugin_name.'-sync-settings'));
-		if(!is_array($sync_settings)){
-			$sync_settings = array();
-		}
+		$this->_load_sync_settings();
 
-		if(!isset($sync_settings[$type])){
+		if(false === $this->_type_settings){
 			$query_args = array(
 				'page'=>$this->plugin_name,
 				'message'=>901,
@@ -276,15 +303,15 @@ class Google_Doc_Records_Admin {
 		}
 
 		//update settings with new values
-		$sync_settings[$type] = $_POST['google_doc_record_configure'] + $sync_settings[$type];
+		$this->_sync_settings[$this->_type] = $_POST['google_doc_record_configure'] + $this->_type_settings;
 
-		//save settings
-		update_option($this->plugin_name.'-sync-settings',serialize($sync_settings));
+		$this->_update_sync_settings();
+
 		$query = array(
 			'page'=>$this->plugin_name,
 			'message'=>200,
 			'message-variables'=>array(
-				'type'=>$sync_settings[$type]['label'],
+				'type'=>$this->_type_settings['label'],
 			),
 		);
 		wp_redirect(admin_url('admin.php?'.http_build_query($query)));
@@ -297,22 +324,21 @@ class Google_Doc_Records_Admin {
 	 */
 	function synced_documents(){
 		$plugin_name = $this->plugin_name;
-		$sync_settings = maybe_unserialize(get_option($this->plugin_name.'-sync-settings'));
-		if(!is_array($sync_settings)){
-			$sync_settings = array();
-		}
+		$this->_load_sync_settings();
+
+		$sync_settings = $this->_sync_settings;
 
 		$std_post = new stdClass();
 		$std_post->label = 'Posts';
 		$post_types = get_post_types(array('show_ui'=>true,'_builtin'=>false),'objects');
 		$post_types['post'] = $std_post;
-		$post_types = array_diff_key($post_types,$sync_settings);
+		$post_types = array_diff_key($post_types,$this->_sync_settings);
 
 		$spreadsheets = $this->_service->getSpreadsheets();
 
 		include(plugin_dir_path( dirname( __FILE__ ) ).'admin/partials/sync-list-top.php');
 
-		foreach($sync_settings as $name=>$post_type){
+		foreach($this->_sync_settings as $name=>$post_type){
 			include(plugin_dir_path( dirname( __FILE__ ) ).'admin/partials/sync-list-item.php');
 		}
 
@@ -328,19 +354,16 @@ class Google_Doc_Records_Admin {
 		}
 
 		//load current settings
-		$sync_settings = maybe_unserialize(get_option($this->plugin_name.'-sync-settings'));
-		if(!is_array($sync_settings)){
-			$sync_settings = array();
-		}
+		$this->_load_sync_settings();
 
 		//generate array for new post type
 		$post_type = $_POST['google_doc_record_add'];
 		$post_types = get_post_types( array('name'=>$post_type['type']), 'objects' );
 		$post_type['label'] = $post_types[$post_type['type']]->label;
 
-		//save updated settings
-		$sync_settings[$post_type['type']] = $post_type;
-		update_option($this->plugin_name.'-sync-settings',serialize($sync_settings));
+		$this->_sync_settings[$post_type['type']] = $post_type;
+
+		$this->_update_sync_settings();
 
 		$query = array(
 			'page'=>$this->plugin_name,
@@ -358,9 +381,8 @@ class Google_Doc_Records_Admin {
 	 */
 	function _process_sync(){
 		$process = isset($_GET['process'])? trim($_GET['process']):'';
-		$type = isset($_GET['type'])? trim($_GET['type']):'';
 		$nonce = isset($_GET['nonce'])? trim($_GET['nonce']):'';
-		if($process == '' || $type == '' || $nonce == ''){
+		if($process == '' || $this->_type == '' || $nonce == ''){
 			$query = array(
 				'page'=>$this->plugin_name,
 				'message'=>950,
@@ -369,17 +391,18 @@ class Google_Doc_Records_Admin {
 			exit;
 		}
 
-		if(!wp_verify_nonce($nonce,$type.'_'.$process)){
+		if(!wp_verify_nonce($nonce,$this->_type.'_'.$process)){
 			return;
 		}
 
 		switch($process){
 			case 'remove':
-				$this->_remove_sync_type($type);
+				$this->_remove_sync_type($this->_type);
 			break;
 			case 'full':
 			break;
 			case 'additions':
+				$this->_handle_additions();
 			break;
 			case 'corrections':
 			break;
@@ -398,17 +421,17 @@ class Google_Doc_Records_Admin {
 	 * @param  string $type post type
 	 */
 	function _remove_sync_type($type){
-		//load current settings
-		$sync_settings = maybe_unserialize(get_option($this->plugin_name.'-sync-settings'));
-		if(!is_array($sync_settings)){
-			$sync_settings = array();
+		$this->_load_sync_settings();
+
+		if(false !== $this->_type_settings){
+			$label = $this->_type_settings['label'];
+			unset($this->_sync_settings[$this->_type]);
+		}else{
+			$label = $this->_type;
 		}
 
-		$label = $sync_settings[$type]['label'];
-		unset($sync_settings[$type]);
+		$this->_update_sync_settings();
 
-		//save updated settings
-		update_option($this->plugin_name.'-sync-settings',serialize($sync_settings));
 		$query = array(
 			'page'=>$this->plugin_name,
 			'message'=>101,
@@ -418,6 +441,38 @@ class Google_Doc_Records_Admin {
 		);
 		wp_redirect(admin_url('admin.php?'.http_build_query($query)));
 		exit;
+	}
+
+	function _handle_additions(){
+		$worksheet = $worksheetFeed->getByTitle('Additions');
+		$listFeed = $worksheet->getListFeed(array("sq" => "completed = \"\"",));
+		foreach ($listFeed->getEntries() as $entry) {
+			$values = $entry->getValues();
+			$post_id = $this->_add_record($values);
+			$values['completed'] = date('m/d/Y');
+			$values['id'] = $post_id;
+			$entry->update($values);
+		}
+	}
+
+	/**
+	 * Inserts new branch into posts as a_branch
+	 * @param array $rs array of values from google doc
+	 */
+	function _add_record($rs){
+		//base post
+		$to_insert = array(
+			'post_type'=>'a_branch',
+			'post_status'=>'publish',
+			'post_title'=>ucwords(strtolower($rs['name'])),
+		);
+		$post_id = wp_insert_post($to_insert, TRUE);
+
+		$this->_branch_meta_fields($rs,$post_id);
+
+		$this->_branch_acf_fields($rs,$post_id);
+
+		return $post_id;
 	}
 
 	/**

@@ -30,19 +30,19 @@
 			<div class="form-group">
 				<label for="google_doc_record_configure__master_id" class="col-sm-2 control-label">ID Field</label>
 				<div class="col-sm-10">
-				<input class="form-control" name="google_doc_record_configure[master_id]" id="google_doc_record_configure__master_id" value="<?php echo esc_attr($settings['master_id']); ?>">
+				<input class="form-control" name="google_doc_record_configure[master_id]" id="google_doc_record_configure__master_id" value="<?php echo esc_attr($settings['master_id']); ?>" required>
 				</div>
 			</div>
 			<div class="form-group">
 				<label for="google_doc_record_configure__master_sync_start" class="col-sm-2 control-label">Sync Started Date</label>
 				<div class="col-sm-10">
-				<input class="form-control" name="google_doc_record_configure[master_sync_start]" id="google_doc_record_configure__master_sync_start" value="<?php echo esc_attr($settings['master_sync_start']); ?>">
+				<input class="form-control" name="google_doc_record_configure[master_sync_start]" id="google_doc_record_configure__master_sync_start" value="<?php echo esc_attr($settings['master_sync_start']); ?>" required>
 				</div>
 			</div>
 			<div class="form-group">
 				<label for="google_doc_record_configure__master_sync_date" class="col-sm-2 control-label">Last Sync Date</label>
 				<div class="col-sm-10">
-				<input class="form-control" name="google_doc_record_configure[master_sync_date]" id="google_doc_record_configure__master_sync_date" value="<?php echo esc_attr($settings['master_sync_date']); ?>">
+				<input class="form-control" name="google_doc_record_configure[master_sync_date]" id="google_doc_record_configure__master_sync_date" value="<?php echo esc_attr($settings['master_sync_date']); ?>" required>
 				</div>
 			</div>
 			<?php
@@ -53,11 +53,11 @@
 			<div class="google_doc_record_field_map form-group">
 				<label for="google_doc_record_wp_field_<?php echo $i; ?>" class="col-sm-3 control-label">Wordpress Field</label>
 				<div class="col-sm-3">
-				<input class="form-control" name="google_doc_record_configure[field_map][<?php echo $i; ?>][wp_field]" id="google_doc_record_wp_field_<?php echo $i; ?>" value="<?php echo esc_attr($field['wp_field']); ?>">
+				<input class="form-control" name="google_doc_record_configure[field_map][<?php echo $i; ?>][wp_field]" id="google_doc_record_wp_field_<?php echo $i; ?>" value="<?php echo esc_attr($field['wp_field']); ?>" required>
 				</div>
 				<label for="google_doc_record_doc_field_<?php echo $i; ?>" class="col-sm-3 control-label">Spreadsheet Field</label>
 				<div class="col-sm-3">
-				<input class="form-control" name="google_doc_record_configure[field_map][<?php echo $i; ?>][doc_field]" id="google_doc_record_doc_field_<?php echo $i; ?>" value="<?php echo esc_attr($field['doc_field']); ?>">
+				<input class="form-control" name="google_doc_record_configure[field_map][<?php echo $i; ?>][doc_field]" id="google_doc_record_doc_field_<?php echo $i; ?>" value="<?php echo esc_attr($field['doc_field']); ?>" required>
 				</div>
 			</div>
 
@@ -67,7 +67,7 @@
 			?>
 
 			<center>
-			<input type="button" value="Add Field" class="js-repeater-add btn btn-sm btn-success" data-template="new_field_map" data-count="google_doc_record_field_map" data-template-vars='{"stem":"google_doc_record"}'>
+			<input type="button" value="Add Sync Field" class="js-repeater-add btn btn-sm btn-success" data-template="new_field_map" data-count="google_doc_record_field_map" data-template-vars='{"stem":"google_doc_record"}'>
 			</center>
 
 			<div class="hidden" id="new_field_map">
@@ -104,21 +104,21 @@
 		<div class="form-group">
 			<label for="google_doc_record_configure__<?php echo $tab_name; ?>_id_field" class="col-sm-2 control-label">ID Field</label>
 			<div class="col-sm-10">
-			<input class="form-control" name="google_doc_record_configure[<?php echo $tab_name; ?>_id_field]" id="google_doc_record_configure__<?php echo $tab_name; ?>_id_field" value="<?php echo esc_attr($settings[$tab_name.'_id_field']);?>">
+			<input class="form-control" name="google_doc_record_configure[<?php echo $tab_name; ?>_id_field]" id="google_doc_record_configure__<?php echo $tab_name; ?>_id_field" value="<?php echo esc_attr($settings[$tab_name.'_id_field']);?>" required>
 			<p><?php echo $tab['id_message']; ?></p>
 			</div>
 		</div>
 		<div class="form-group">
 			<label for="google_doc_record_configure__<?php echo $tab_name; ?>_date_field" class="col-sm-2 control-label">Date Field</label>
 			<div class="col-sm-10">
-			<input class="form-control" name="google_doc_record_configure[<?php echo $tab_name; ?>_date_field]" id="google_doc_record_configure__<?php echo $tab_name; ?>_date_field" value="<?php echo esc_attr($settings[$tab_name.'_date_field']);?>">
+			<input class="form-control" name="google_doc_record_configure[<?php echo $tab_name; ?>_date_field]" id="google_doc_record_configure__<?php echo $tab_name; ?>_date_field" value="<?php echo esc_attr($settings[$tab_name.'_date_field']);?>" required>
 			<p><?php echo $tab['sync_date_message']; ?></p>
 			</div>
 		</div>
 		<div class="form-group">
 			<label for="google_doc_record_configure__<?php echo $tab_name; ?>_status_field" class="col-sm-2 control-label">Status Field</label>
 			<div class="col-sm-10">
-			<input class="form-control" name="google_doc_record_configure[<?php echo $tab_name; ?>_status_field]" id="google_doc_record_configure__<?php echo $tab_name; ?>_status_field" value="<?php echo esc_attr($settings[$tab_name.'_status_field']);?>">
+			<input class="form-control" name="google_doc_record_configure[<?php echo $tab_name; ?>_status_field]" id="google_doc_record_configure__<?php echo $tab_name; ?>_status_field" value="<?php echo esc_attr($settings[$tab_name.'_status_field']);?>" required>
 			<p><?php echo $tab['sync_status_message']; ?></p>
 			</div>
 		</div>
