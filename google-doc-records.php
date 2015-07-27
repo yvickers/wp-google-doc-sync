@@ -72,4 +72,6 @@ function run_google_doc_records() {
 	$plugin->run();
 
 }
-run_google_doc_records();
+if(is_admin()){
+	run_google_doc_records();
+}

@@ -45,6 +45,12 @@
 				<input class="form-control" name="google_doc_record_configure[master_sync_date]" id="google_doc_record_configure__master_sync_date" value="<?php echo esc_attr($settings['master_sync_date']); ?>" required>
 				</div>
 			</div>
+			<div class="form-group">
+				<label for="google_doc_record_configure__master_sync_status" class="col-sm-2 control-label">Sync Status</label>
+				<div class="col-sm-10">
+				<input class="form-control" name="google_doc_record_configure[master_sync_status]" id="google_doc_record_configure__master_sync_status" value="<?php echo esc_attr($settings['master_sync_status']); ?>" required>
+				</div>
+			</div>
 			<?php
 			$i = 0;
 			foreach($settings['field_map'] as $field):

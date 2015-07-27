@@ -51,7 +51,7 @@
 		?>
 			<div>
 			<p>
-				<a href="<?php echo $link_url; ?>" class="<?php echo $link['class']; ?>"<?php echo $disabled; ?>><?php echo $link['label']; ?></a>
+				<a href="<?php echo $link_url; ?>" class="<?php echo $link['class']; ?> js-process-button"<?php echo $disabled; ?>><?php echo $link['label']; ?></a>
 				-
 				<?php echo $link['description']; ?>
 			</p>

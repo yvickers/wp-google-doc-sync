@@ -38,6 +38,10 @@ class Google_Doc_Records_Messages{
 			'type'=>'success',
 			'content'=>'Removed sync for %type$s.',
 		),
+		160=>array(
+			'type'=>'success',
+			'content'=>'Additions process complete for %type$s.',
+		),
 		200=>array(
 			'type'=>'success',
 			'content'=>'Configuration saved for %type$s.',
@@ -57,6 +61,14 @@ class Google_Doc_Records_Messages{
 		950=>array(
 			'type'=>'danger',
 			'content'=>'Missing required parameter to start process.',
+		),
+		951=>array(
+			'type'=>'danger',
+			'content'=>'Missing sync settings for %type$s.',
+		),
+		952=>array(
+			'type'=>'danger',
+			'content'=>'Missing required sync settings for %process$s process of %type$s.  Please check your configuration settings for %type$s.',
 		),
 	);
 

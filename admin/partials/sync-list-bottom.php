@@ -1,4 +1,6 @@
+<?php if(count($sync_settings) > 0): ?>
 </div>
+<?php endif; ?>
 
 <form method="post" class="form-inline">
 	<h3>Add New Record Sync</h3>

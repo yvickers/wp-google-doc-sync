@@ -49,6 +49,11 @@
 				$(this).before(template_html);
 			}
 		});
+
+		$(".js-process-button").click(function(){
+			$(this).attr('disabled','disabled');
+			$(this).append('&nbsp;<i class="fa fa-spinner fa-pulse"></i>');
+		});
 	});
 
 function replaceAll(string, find, replace) {
