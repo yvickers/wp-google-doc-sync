@@ -78,6 +78,10 @@ class Google_Doc_Records_Messages{
 			'type'=>'danger',
 			'content'=>'Missing required sync settings for %process$s process of %type$s.  Please check your configuration settings for %type$s.',
 		),
+		999=>array(
+			'type'=>'danger',
+			'content'=>'Process: %type$s not defined.',
+		),
 	);
 
 	/**
