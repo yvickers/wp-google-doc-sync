@@ -42,6 +42,14 @@ class Google_Doc_Records_Messages{
 			'type'=>'success',
 			'content'=>'Additions process complete for %type$s.',
 		),
+		170=>array(
+			'type'=>'success',
+			'content'=>'Corrections process complete for %type$s.',
+		),
+		180=>array(
+			'type'=>'success',
+			'content'=>'Deletions process complete for %type$s.',
+		),
 		200=>array(
 			'type'=>'success',
 			'content'=>'Configuration saved for %type$s.',

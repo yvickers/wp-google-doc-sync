@@ -421,6 +421,7 @@ class Google_Doc_Records_Admin {
 			case 'corrections':
 			break;
 			case 'deletions':
+				$this->_handle_deletions();
 			break;
 			case 'resync':
 			break;
@@ -468,7 +469,7 @@ class Google_Doc_Records_Admin {
 		){
 			$query = array(
 				'page'=>$this->plugin_name,
-				'message'=>960,
+				'message'=>952,
 				'message-variables'=>array(
 					'type'=>$this->_type_settings['label'],
 					'process'=>'Additions',
@@ -480,7 +481,7 @@ class Google_Doc_Records_Admin {
 
 		$update_time = date('m/d/y H:i:s');
 
-		//@todo start log entry
+		//start log entry
 		$log = array();
 		$log_entry = array(
 			'post_type'=>substr('gdrc_log_'.$this->_type,0,20),
@@ -599,6 +600,96 @@ class Google_Doc_Records_Admin {
 		}
 
 		return $post_id;
+	}
+
+	/**
+	 * Process records in deletions tab, remove from master spreadsheet tab
+	 */
+	function _handle_deletions(){
+		//double check everything we need to connect and sync
+		if(
+			'' == $this->_type_settings['deletions_tab'] ||
+			'' == $this->_type_settings['deletions_status_field'] ||
+			'' == $this->_type_settings['deletions_id_field'] ||
+			'' == $this->_type_settings['deletions_date_field']
+		){
+			$query = array(
+				'page'=>$this->plugin_name,
+				'message'=>952,
+				'message-variables'=>array(
+					'type'=>$this->_type_settings['label'],
+					'process'=>'Deletions',
+				),
+			);
+			wp_redirect(admin_url('admin.php?'.http_build_query($query)));
+			exit;
+		}
+
+		$update_time = date('m/d/y H:i:s');
+
+		//start log entry
+		$log = array();
+		$log_entry = array(
+			'post_type'=>substr('gdrc_log_'.$this->_type,0,20),
+			'post_status'=>'private',
+			'post_title'=>'Deletions Process '.$this->_type_settings['label'].' ['.$update_time.']',
+		);
+
+		//@todo	general try catch for connection
+		$spreadsheetFeed = $this->_service->getSpreadsheets();
+		$spreadsheet = $spreadsheetFeed->getByTitle($this->_type_settings['spreadsheet']);
+		$worksheetFeed = $spreadsheet->getWorksheets();
+		$master_worksheet = $worksheetFeed->getByTitle($this->_type_settings['master_tab']);
+		$worksheet = $worksheetFeed->getByTitle($this->_type_settings['deletions_tab']);
+		$query = array("sq" => $this->_google_header($this->_type_settings['deletions_status_field'])." = \"\"",);
+		$listFeed = $worksheet->getListFeed($query);
+		$entries = $listFeed->getEntries();
+		$log[] = 'Found '.count($entries).' in '.$this->_type_settings['spreadsheet'].' > '.$this->_type_settings['deletions_tab'].'.';
+		$i = 0;
+		foreach ($entries as $entry) {
+			if($i > 10){
+				break;
+			}
+			$values = $entry->getValues();
+			$id = (int)$values[$this->_google_header($this->_type_settings['deletions_id_field'])];
+
+			//@todo	check for wp error object returned
+			//make sure log reflects errors and possibly entries
+			wp_delete_post($id);
+
+			//update master tab
+			$args = array(
+				'sq'=>$this->_google_header($this->_type_settings['master_id'])." = $id",
+			);
+			$master_list_feed = $master_worksheet->getListFeed($args);
+			foreach($master_list_feed->getEntries() as $delete_row){
+				$delete_row->delete();
+			}
+
+			//update deletion tab
+			$deletions_tab_values = apply_filters('google_doc_records/deletions_deletions_tab_values',$values);
+			$deletions_tab_values = apply_filters('google_doc_records/deletions_deletions_tab_values_'.$this->_type,$deletions_tab_values);
+			$deletions_tab_values[$this->_google_header($this->_type_settings['deletions_date_field'])] = $update_time;
+			$deletions_tab_values[$this->_google_header($this->_type_settings['deletions_status_field'])] = 'deleted';
+			$entry->update($deletions_tab_values);
+			$i++;
+		}
+
+		$log[] = ($i - 1).' records processed.';
+
+		$log_entry['post_content'] = implode("\n",$log);
+
+		wp_insert_post($log_entry,true);
+
+		$query = array(
+			'page'=>$this->plugin_name,
+			'message'=>180,
+			'message-variables'=>array(
+				'type'=>$this->_type_settings['label'],
+			),
+		);
+		wp_redirect(admin_url('admin.php?'.http_build_query($query)));
+		exit;
 	}
 
 	/**
