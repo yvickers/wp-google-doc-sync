@@ -64,6 +64,32 @@ class Google_Doc_Records_Admin {
 	protected $_type_settings = false;
 	protected $_type = '';
 
+	protected $_standard_wp_fields = array(
+		'ID' => 1,
+		'post_content' => 1,
+		'post_name' => 1,
+		'post_title' => 1,
+		'post_status' => 1,
+		'post_type' => 1,
+		'post_author' => 1,
+		'ping_status' => 1,
+		'post_parent' => 1,
+		'menu_order' => 1,
+		'to_ping' => 1,
+		'pinged' => 1,
+		'post_password' => 1,
+		'guid' => 1,
+		'post_content_filtered' => 1,
+		'post_excerpt' => 1,
+		'post_date' => 1,
+		'post_date_gmt' => 1,
+		'comment_status' => 1,
+		'post_category' => 1,
+		'tags_input' => 1,
+		'tax_input' => 1,
+		'page_template' => 1,
+	);
+
 	/**
 	 * Initialize the class and set its properties.
 	 *
@@ -75,7 +101,7 @@ class Google_Doc_Records_Admin {
 
 		$this->plugin_name = $plugin_name;
 		$this->version = $version;
-
+		$this->_start_log();
 	}
 
 	/**
@@ -414,9 +440,10 @@ class Google_Doc_Records_Admin {
 				$this->_remove_sync_type($this->_type);
 			break;
 			case 'full':
+				$this->_full_sync();
 			break;
 			case 'additions':
-				$this->_handle_additions();
+				$this->_additions_process();
 			break;
 			case 'corrections':
 				$this->_handle_corrections();
@@ -425,6 +452,7 @@ class Google_Doc_Records_Admin {
 				$this->_handle_deletions();
 			break;
 			case 'resync':
+				$this->_resync();
 			break;
 			default:
 				$query = array(
@@ -466,52 +494,219 @@ class Google_Doc_Records_Admin {
 	}
 
 	/**
-	 * process additions tab from spreadsheet
+	 * process all tabs within spreadsheet
 	 */
-	function _handle_additions(){
-		//double check everything we need to connect and sync
-		if(
-			'' == $this->_type_settings['additions_tab'] ||
-			'' == $this->_type_settings['additions_status_field'] ||
-			'' == $this->_type_settings['additions_id_field'] ||
-			'' == $this->_type_settings['additions_date_field']
-		){
-			$query = array(
-				'page'=>$this->plugin_name,
-				'message'=>952,
-				'message-variables'=>array(
-					'type'=>$this->_type_settings['label'],
-					'process'=>'Additions',
-				),
-			);
-			wp_redirect(admin_url('admin.php?'.http_build_query($query)));
-			exit;
-		}
+	function _full_sync(){
+		$this->_handle_deletions();
+		$this->_handle_additions();
+		$this->_handle_corrections();
 
+		$this->_save_log(array(
+			'post_type'=>substr('gdrc_log_'.$this->_type,0,20),
+			'post_title'=>'Full Sync Process '.$this->_type_settings['label'],
+		));
+
+		$query = array(
+			'page'=>$this->plugin_name,
+			'message'=>190,
+			'message-variables'=>array(
+				'type'=>$this->_type_settings['label'],
+			),
+		);
+		wp_redirect(admin_url('admin.php?'.http_build_query($query)));
+		exit;
+	}
+
+	/**
+	 * match wordpress to master tab contents
+	 */
+	function _resync(){
+		$this->_log('Additions Processing.');
 		$update_time = date('m/d/y H:i:s');
 
-		//start log entry
-		$log = array();
-		$log_entry = array(
+		$posts = get_posts(array('post_type'=>$this->_type,'posts_per_page'=>-1,'post_status'=>'publish,private,draft'));
+		$post_ids = array();
+		foreach($posts as $post){
+			$post_ids[$post->ID] = $post->ID;
+		}
+
+		$master_worksheet = $this->_get_worksheet($this->_type_settings['master_tab']);
+		$master_list_feed = $master_worksheet->getListFeed();
+		$entries = $master_list_feed->getEntries();
+		$this->_log('Found '.count($entries).'.');
+		$i = 0;
+		foreach($entries as $entry){
+			$values = $entry->getValues();
+			$id = (int)$values[$this->_google_header($this->_type_settings['master_id'])];
+			unset($values[$this->_google_header($this->_type_settings['master_sync_start'])]);
+
+			//apply map field for spreadsheet values
+			$wp_values = array(
+				'post_type'=>$this->_type,
+				'post_status'=>'publish',
+			);
+			foreach($this->_type_settings['field_map'] as $field){
+				$wp_values[$field['wp_field']] = $values[$this->_google_header($field['doc_field'])];
+			}
+
+			//allow code to adjust what is saved to wordpress
+			$wp_values = apply_filters('google_doc_records/sync_values',$wp_values);
+			$wp_values = apply_filters('google_doc_records/sync_values_'.$this->_type,$wp_values);
+
+			$fxn = (isset($post_ids[$id]))? 'wp_update_post':'wp_insert_post';
+			unset($post_ids[$id]);
+
+			$post_id = $this->_wp_record($wp_values,$fxn);
+			if(is_wp_error($post_id)){
+				$this->_log('Unable to sync post: '.$id.'.');
+				$this->_log($post_id->get_error_messages());
+				$status = 'error';
+			}else{
+				$status = 'synced';
+			}
+
+			//update master tab
+			$master_tab_values = $values;
+			$master_tab_values += array(
+				$this->_google_header($this->_type_settings['master_sync_date']) => $update_time,
+				$this->_google_header($this->_type_settings['master_sync_status']) => $status,
+			);
+			$master_tab_values = apply_filters('google_doc_records/sync_master_tab_values',$master_tab_values);
+			$master_tab_values = apply_filters('google_doc_records/sync_master_tab_values_'.$this->_type,$master_tab_values);
+			$entry->update($master_tab_values);
+
+			$i++;
+		}
+
+		foreach($post_ids as $id){
+			if(false === wp_delete_post($id)){
+				$this->_log('Unable to delete post: '.$id.'.');
+			}
+			$i++;
+		}
+
+		$this->_log($i.' records processed.');
+
+		$this->_save_log(array(
 			'post_type'=>substr('gdrc_log_'.$this->_type,0,20),
-			'post_status'=>'private',
-			'post_title'=>'Additions Process '.$this->_type_settings['label'].' ['.$update_time.']',
+			'post_title'=>'ReSync Process '.$this->_type_settings['label'],
+		));
+
+		$query = array(
+			'page'=>$this->plugin_name,
+			'message'=>195,
+			'message-variables'=>array(
+				'type'=>$this->_type_settings['label'],
+			),
+		);
+		wp_redirect(admin_url('admin.php?'.http_build_query($query)));
+		exit;
+	}
+
+	/**
+	 * ensure we have the fields defined we need for a tab process
+	 * @param  array  $params key=>value array of function parameters
+	 * @return boolean         returns true if all fields present and populated
+	 */
+	function _double_check_process_requirements($params = array()){
+		$params += array(
+			'stem'=>'_does_not_exist',
+			'process'=>'Not defined.',
+			'passes'=>true,
+		);
+		extract($params);
+
+		$fields = array(
+			$stem.'_tab',
+			$stem.'_status_field',
+			$stem.'_id_field',
+			$stem.'_date_field',
 		);
 
-		//@todo	general try catch for connection
-		$spreadsheetFeed = $this->_service->getSpreadsheets();
-		$spreadsheet = $spreadsheetFeed->getByTitle($this->_type_settings['spreadsheet']);
-		$worksheetFeed = $spreadsheet->getWorksheets();
-		$master_worksheet = $worksheetFeed->getByTitle($this->_type_settings['master_tab']);
+		foreach($fields as $field){
+			if(isset($this->_type_settings[$field]) && '' == trim($this->_type_settings[$field])){
+				continue;
+			}
+			$passes = false;
+		}
+
+		if($passes){
+			return true;
+		}
+
+		$query = array(
+			'page'=>$this->plugin_name,
+			'message'=>952,
+			'message-variables'=>array(
+				'type'=>$this->_type_settings['label'],
+				'process'=>$process,
+			),
+		);
+		wp_redirect(admin_url('admin.php?'.http_build_query($query)));
+		exit;
+	}
+
+	/**
+	 * load single worksheet by name
+	 * @param  string $name worksheet name
+	 * @return object       worksheet object
+	 */
+	function _get_worksheet($name){
+		static $worksheetFeed;
+
+		if(!isset($worksheetFeed)){
+			$spreadsheetFeed = $this->_service->getSpreadsheets();
+			$this->_log('Loading spreadsheet: '.$this->_type_settings['spreadsheet'].'.');
+			$spreadsheet = $spreadsheetFeed->getByTitle($this->_type_settings['spreadsheet']);
+			$worksheetFeed = $spreadsheet->getWorksheets();
+		}
+
+		$this->_log('Loading worksheet: '.$name).'.';
+		return $worksheetFeed->getByTitle($name);
+	}
+
+	/**
+	 * class mode to handle additions and post back results to main page
+	 */
+	function _additions_process(){
+		$this->_handle_additions();
+
+		$this->_save_log(array(
+			'post_type'=>substr('gdrc_log_'.$this->_type,0,20),
+			'post_title'=>'Additions Process '.$this->_type_settings['label'],
+		));
+
+		$query = array(
+			'page'=>$this->plugin_name,
+			'message'=>160,
+			'message-variables'=>array(
+				'type'=>$this->_type_settings['label'],
+			),
+		);
+		wp_redirect(admin_url('admin.php?'.http_build_query($query)));
+		exit;
+	}
+
+	/**
+	 * process additions tab from spreadsheet
+	 */
+	function _handle_additions($process_limit = 0){
+		$this->_double_check_process_requirements(array('stem'=>'additions','process'=>'Additions'));
+
+		$this->_log('Additions Processing.');
+		$update_time = date('m/d/y H:i:s');
+
+		//load needed worksheets
+		$master_worksheet = $this->_get_worksheet($this->_type_settings['master_tab']);
 		$master_list_feed = $master_worksheet->getListFeed();
-		$worksheet = $worksheetFeed->getByTitle($this->_type_settings['additions_tab']);
+		$worksheet = $this->_get_worksheet($this->_type_settings['additions_tab']);
 		$query = array("sq" => $this->_google_header($this->_type_settings['additions_status_field'])." = \"\"",);
 		$listFeed = $worksheet->getListFeed($query);
 		$entries = $listFeed->getEntries();
-		$log[] = 'Found '.count($entries).' in '.$this->_type_settings['spreadsheet'].' > '.$this->_type_settings['additions_tab'].'.';
+		$this->_log('Found '.count($entries).'.');
 		$i = 0;
 		foreach ($entries as $entry) {
-			if($i > 10){
+			if($process_limit > 0 && $i > $process_limit){
 				break;
 			}
 			$values = $entry->getValues();
@@ -532,38 +727,57 @@ class Google_Doc_Records_Admin {
 			$wp_values = apply_filters('google_doc_records/additions_values',$wp_values);
 			$wp_values = apply_filters('google_doc_records/additions_values_'.$this->_type,$wp_values);
 
-			$post_id = $this->_add_record($wp_values);
-			//@todo	check for wp error object returned
-			//make sure log reflects errors and possibly entries
+			$post_id = $this->_wp_record($wp_values);
+			if(is_wp_error($post_id)){
+				$this->_log('Unable to insert new post.');
+				$this->_log(var_export($wp_values,true));
+				$this->_log($post_id->get_error_messages());
+				$status = 'error';
+			}else{
+				//insert into master tab
+				$master_tab_values = $values;
+				$master_tab_values += array(
+					$this->_google_header($this->_type_settings['master_sync_start']) => $update_time,
+					$this->_google_header($this->_type_settings['master_sync_date']) => $update_time,
+					$this->_google_header($this->_type_settings['master_sync_status']) => 'inserted',
+					$this->_google_header($this->_type_settings['master_id']) => $post_id,
+				);
+				$master_tab_values = apply_filters('google_doc_records/additions_master_tab_values',$master_tab_values);
+				$master_tab_values = apply_filters('google_doc_records/additions_master_tab_values_'.$this->_type,$master_tab_values);
+				$master_list_feed->insert($master_tab_values);
+				$status = 'inserted';
+			}
 
-			//insert into master tab
-			$master_tab_values = apply_filters('google_doc_records/additions_master_tab_values',$values);
-			$master_tab_values = apply_filters('google_doc_records/additions_master_tab_values_'.$this->_type,$master_tab_values);
-			$master_tab_values[$this->_google_header($this->_type_settings['master_sync_start'])] = $update_time;
-			$master_tab_values[$this->_google_header($this->_type_settings['master_sync_date'])] = $update_time;
-			$master_tab_values[$this->_google_header($this->_type_settings['master_sync_status'])] = 'inserted';
-			$master_tab_values[$this->_google_header($this->_type_settings['master_id'])] = $post_id;
-			$master_list_feed->insert($master_tab_values);
-
-			//update addition tab
-			$additions_tab_values = apply_filters('google_doc_records/additions_additions_tab_values',$values);
+			//update additions tab
+			$additions_tab_values = $values;
+			$additions_tab_values += array(
+				$this->_google_header($this->_type_settings['additions_date_field']) => $update_time,
+				$this->_google_header($this->_type_settings['additions_status_field']) => $status,
+				$this->_google_header($this->_type_settings['additions_id_field']) => $post_id,
+			);
+			$additions_tab_values = apply_filters('google_doc_records/additions_additions_tab_values',$additions_tab_values);
 			$additions_tab_values = apply_filters('google_doc_records/additions_additions_tab_values_'.$this->_type,$additions_tab_values);
-			$additions_tab_values[$this->_google_header($this->_type_settings['additions_date_field'])] = $update_time;
-			$additions_tab_values[$this->_google_header($this->_type_settings['additions_status_field'])] = 'inserted';
-			$additions_tab_values[$this->_google_header($this->_type_settings['additions_id_field'])] = $post_id;
 			$entry->update($additions_tab_values);
 			$i++;
 		}
 
-		$log[] = ($i - 1).' records processed.';
+		$this->_log($i.' records processed.');
+	}
 
-		$log_entry['post_content'] = implode("\n",$log);
+	/**
+	 * Handle corrections and direct back to main page
+	 */
+	function _corrections_process(){
+		$this->_handle_corrections();
 
-		wp_insert_post($log_entry,true);
+		$this->_save_log(array(
+			'post_type'=>substr('gdrc_log_'.$this->_type,0,20),
+			'post_title'=>'Corrections Process '.$this->_type_settings['label'],
+		));
 
 		$query = array(
 			'page'=>$this->plugin_name,
-			'message'=>160,
+			'message'=>170,
 			'message-variables'=>array(
 				'type'=>$this->_type_settings['label'],
 			),
@@ -573,93 +787,24 @@ class Google_Doc_Records_Admin {
 	}
 
 	/**
-	 * Inserts new branch into posts as a_branch
-	 * @param array $rs array of values from google doc
-	 */
-	function _add_record($rs){
-		$standard_fields = array(
-			'ID' => 1,
-			'post_content' => 1,
-			'post_name' => 1,
-			'post_title' => 1,
-			'post_status' => 1,
-			'post_type' => 1,
-			'post_author' => 1,
-			'ping_status' => 1,
-			'post_parent' => 1,
-			'menu_order' => 1,
-			'to_ping' => 1,
-			'pinged' => 1,
-			'post_password' => 1,
-			'guid' => 1,
-			'post_content_filtered' => 1,
-			'post_excerpt' => 1,
-			'post_date' => 1,
-			'post_date_gmt' => 1,
-			'comment_status' => 1,
-			'post_category' => 1,
-			'tags_input' => 1,
-			'tax_input' => 1,
-			'page_template' => 1,
-		);
-		$to_insert = array_intersect_key($rs, $standard_fields);
-		$post_id = wp_insert_post($to_insert, TRUE);
-
-		$meta_fields = array_diff_key($rs, $standard_fields);
-
-		foreach($meta_fields as $k=>$v){
-			update_post_meta($post_id,$k,$v);
-		}
-
-		return $post_id;
-	}
-
-	/**
 	 * Process records in corrections tab
 	 */
-	function _handle_corrections(){
-		//double check everything we need to connect and sync
-		if(
-			'' == $this->_type_settings['corrections_tab'] ||
-			'' == $this->_type_settings['corrections_status_field'] ||
-			'' == $this->_type_settings['corrections_id_field'] ||
-			'' == $this->_type_settings['corrections_date_field']
-		){
-			$query = array(
-				'page'=>$this->plugin_name,
-				'message'=>952,
-				'message-variables'=>array(
-					'type'=>$this->_type_settings['label'],
-					'process'=>'Corrections',
-				),
-			);
-			wp_redirect(admin_url('admin.php?'.http_build_query($query)));
-			exit;
-		}
+	function _handle_corrections($process_limit = 0){
+		$this->_double_check_process_requirements(array('stem'=>'corrections','process'=>'Corrections'));
 
+		$this->_log('Conditions Processing.');
 		$update_time = date('m/d/y H:i:s');
 
-		//start log entry
-		$log = array();
-		$log_entry = array(
-			'post_type'=>substr('gdrc_log_'.$this->_type,0,20),
-			'post_status'=>'private',
-			'post_title'=>'Corrections Process '.$this->_type_settings['label'].' ['.$update_time.']',
-		);
-
-		//@todo	general try catch for connection
-		$spreadsheetFeed = $this->_service->getSpreadsheets();
-		$spreadsheet = $spreadsheetFeed->getByTitle($this->_type_settings['spreadsheet']);
-		$worksheetFeed = $spreadsheet->getWorksheets();
-		$master_worksheet = $worksheetFeed->getByTitle($this->_type_settings['master_tab']);
-		$worksheet = $worksheetFeed->getByTitle($this->_type_settings['corrections_tab']);
+		//load needed worksheets
+		$master_worksheet = $this->_get_worksheet($this->_type_settings['master_tab']);
+		$worksheet = $this->_get_worksheet($this->_type_settings['corrections_tab']);
 		$query = array("sq" => $this->_google_header($this->_type_settings['corrections_status_field'])." = \"\"",);
 		$listFeed = $worksheet->getListFeed($query);
 		$entries = $listFeed->getEntries();
-		$log[] = 'Found '.count($entries).' in '.$this->_type_settings['spreadsheet'].' > '.$this->_type_settings['corrections_tab'].'.';
+		$this->_log('Found '.count($entries).'.');
 		$i = 0;
 		foreach ($entries as $entry) {
-			if($i > 10){
+			if($process_limit > 0 && $i > $process_limit){
 				break;
 			}
 			$values = $entry->getValues();
@@ -680,31 +825,35 @@ class Google_Doc_Records_Admin {
 			$wp_values = apply_filters('google_doc_records/corrections_values',$wp_values);
 			$wp_values = apply_filters('google_doc_records/corrections_values_'.$this->_type,$wp_values);
 
-			//@todo	check for wp error object returned
-			//make sure log reflects errors and possibly entries
-			$this->_update_record($wp_values);
-
-			//update master tab
-			$args = array(
-				'sq'=>$this->_google_header($this->_type_settings['master_id'])." = $id",
-			);
-			$master_list_feed = $master_worksheet->getListFeed($args);
-			$master_tab_values = $values;
-			$master_tab_values += array(
-				$this->_google_header($this->_type_settings['master_sync_date']) => $update_time,
-				$this->_google_header($this->_type_settings['master_sync_status']) => 'updated',
-			);
-			$master_tab_values = apply_filters('google_doc_records/corrections_master_tab_values',$master_tab_values);
-			$master_tab_values = apply_filters('google_doc_records/corrections_master_tab_values_'.$this->_type,$master_tab_values);
-			foreach($master_list_feed->getEntries() as $update_row){
-				$update_row->update($master_tab_values);
+			$post_id = $this->_wp_record($wp_values,'wp_update_post');
+			if(is_wp_error($post_id)){
+				$this->_log('Unable to update post: '.$id.'.');
+				$this->_log($post_id->get_error_messages());
+				$status = 'error';
+			}else{
+				//update master tab
+				$args = array(
+					'sq'=>$this->_google_header($this->_type_settings['master_id'])." = $id",
+				);
+				$master_list_feed = $master_worksheet->getListFeed($args);
+				$master_tab_values = $values;
+				$master_tab_values += array(
+					$this->_google_header($this->_type_settings['master_sync_date']) => $update_time,
+					$this->_google_header($this->_type_settings['master_sync_status']) => 'updated',
+				);
+				$master_tab_values = apply_filters('google_doc_records/corrections_master_tab_values',$master_tab_values);
+				$master_tab_values = apply_filters('google_doc_records/corrections_master_tab_values_'.$this->_type,$master_tab_values);
+				foreach($master_list_feed->getEntries() as $update_row){
+					$update_row->update($master_tab_values);
+				}
+				$status = 'updated';
 			}
 
 			//update corrections tab
 			$corrections_tab_values = $values;
 			$corrections_tab_values += array(
 				$this->_google_header($this->_type_settings['corrections_date_field']) => $update_time,
-				$this->_google_header($this->_type_settings['corrections_status_field']) => 'updated',
+				$this->_google_header($this->_type_settings['corrections_status_field']) => $status,
 			);
 			$corrections_tab_values = apply_filters('google_doc_records/corrections_corrections_tab_values',$corrections_tab_values);
 			$corrections_tab_values = apply_filters('google_doc_records/corrections_corrections_tab_values_'.$this->_type,$corrections_tab_values);
@@ -712,57 +861,21 @@ class Google_Doc_Records_Admin {
 			$i++;
 		}
 
-		$log[] = ($i - 1).' records processed.';
-
-		$log_entry['post_content'] = implode("\n",$log);
-
-		wp_insert_post($log_entry,true);
-
-		$query = array(
-			'page'=>$this->plugin_name,
-			'message'=>170,
-			'message-variables'=>array(
-				'type'=>$this->_type_settings['label'],
-			),
-		);
-		wp_redirect(admin_url('admin.php?'.http_build_query($query)));
-		exit;
+		$this->_log($i.' records processed.');
 	}
 
 	/**
-	 * Updates record in wordpress database
+	 * update/insert record in wordpress database
 	 * @param array $rs array of values from google doc
 	 */
-	function _update_record($rs){
-		$standard_fields = array(
-			'ID' => 1,
-			'post_content' => 1,
-			'post_name' => 1,
-			'post_title' => 1,
-			'post_status' => 1,
-			'post_type' => 1,
-			'post_author' => 1,
-			'ping_status' => 1,
-			'post_parent' => 1,
-			'menu_order' => 1,
-			'to_ping' => 1,
-			'pinged' => 1,
-			'post_password' => 1,
-			'guid' => 1,
-			'post_content_filtered' => 1,
-			'post_excerpt' => 1,
-			'post_date' => 1,
-			'post_date_gmt' => 1,
-			'comment_status' => 1,
-			'post_category' => 1,
-			'tags_input' => 1,
-			'tax_input' => 1,
-			'page_template' => 1,
-		);
-		$to_update = array_intersect_key($rs, $standard_fields);
-		$post_id = wp_update_post($to_update, TRUE);
+	function _wp_record($rs,$fxn = 'wp_insert_post'){
+		$to_update = array_intersect_key($rs, $this->_standard_wp_fields);
+		$post_id = $fxn($to_update, TRUE);
+		if(is_wp_error($post_id)){
+			return $post_id;
+		}
 
-		$meta_fields = array_diff_key($rs, $standard_fields);
+		$meta_fields = array_diff_key($rs, $this->_standard_wp_fields);
 
 		foreach($meta_fields as $k=>$v){
 			update_post_meta($post_id,$k,$v);
@@ -772,83 +885,15 @@ class Google_Doc_Records_Admin {
 	}
 
 	/**
-	 * Process records in deletions tab, remove from master spreadsheet tab
+	 * Handle deletions and direct back to main page
 	 */
-	function _handle_deletions(){
-		//double check everything we need to connect and sync
-		if(
-			'' == $this->_type_settings['deletions_tab'] ||
-			'' == $this->_type_settings['deletions_status_field'] ||
-			'' == $this->_type_settings['deletions_id_field'] ||
-			'' == $this->_type_settings['deletions_date_field']
-		){
-			$query = array(
-				'page'=>$this->plugin_name,
-				'message'=>952,
-				'message-variables'=>array(
-					'type'=>$this->_type_settings['label'],
-					'process'=>'Deletions',
-				),
-			);
-			wp_redirect(admin_url('admin.php?'.http_build_query($query)));
-			exit;
-		}
+	function _deletions_process(){
+		$this->_handle_corrections();
 
-		$update_time = date('m/d/y H:i:s');
-
-		//start log entry
-		$log = array();
-		$log_entry = array(
+		$this->_save_log(array(
 			'post_type'=>substr('gdrc_log_'.$this->_type,0,20),
-			'post_status'=>'private',
-			'post_title'=>'Deletions Process '.$this->_type_settings['label'].' ['.$update_time.']',
-		);
-
-		//@todo	general try catch for connection
-		$spreadsheetFeed = $this->_service->getSpreadsheets();
-		$spreadsheet = $spreadsheetFeed->getByTitle($this->_type_settings['spreadsheet']);
-		$worksheetFeed = $spreadsheet->getWorksheets();
-		$master_worksheet = $worksheetFeed->getByTitle($this->_type_settings['master_tab']);
-		$worksheet = $worksheetFeed->getByTitle($this->_type_settings['deletions_tab']);
-		$query = array("sq" => $this->_google_header($this->_type_settings['deletions_status_field'])." = \"\"",);
-		$listFeed = $worksheet->getListFeed($query);
-		$entries = $listFeed->getEntries();
-		$log[] = 'Found '.count($entries).' in '.$this->_type_settings['spreadsheet'].' > '.$this->_type_settings['deletions_tab'].'.';
-		$i = 0;
-		foreach ($entries as $entry) {
-			if($i > 10){
-				break;
-			}
-			$values = $entry->getValues();
-			$id = (int)$values[$this->_google_header($this->_type_settings['deletions_id_field'])];
-
-			//@todo	check for wp error object returned
-			//make sure log reflects errors and possibly entries
-			wp_delete_post($id);
-
-			//update master tab
-			$args = array(
-				'sq'=>$this->_google_header($this->_type_settings['master_id'])." = $id",
-			);
-			$master_list_feed = $master_worksheet->getListFeed($args);
-			foreach($master_list_feed->getEntries() as $delete_row){
-				$delete_row->delete();
-			}
-
-			//update deletion tab
-			$deletions_tab_values = apply_filters('google_doc_records/deletions_deletions_tab_values',$values);
-			$deletions_tab_values = apply_filters('google_doc_records/deletions_deletions_tab_values_'.$this->_type,$deletions_tab_values);
-			$deletions_tab_values[$this->_google_header($this->_type_settings['deletions_date_field'])] = $update_time;
-			$deletions_tab_values[$this->_google_header($this->_type_settings['deletions_status_field'])] = 'deleted';
-			$entry->update($deletions_tab_values);
-			$i++;
-		}
-
-		$log[] = ($i - 1).' records processed.';
-
-		$log_entry['post_content'] = implode("\n",$log);
-
-		wp_insert_post($log_entry,true);
+			'post_title'=>'Deletions Process '.$this->_type_settings['label'],
+		));
 
 		$query = array(
 			'page'=>$this->plugin_name,
@@ -859,6 +904,60 @@ class Google_Doc_Records_Admin {
 		);
 		wp_redirect(admin_url('admin.php?'.http_build_query($query)));
 		exit;
+	}
+
+	/**
+	 * Process records in deletions tab, remove from master spreadsheet tab
+	 */
+	function _handle_deletions($process_limit = 0){
+		$this->_double_check_process_requirements(array('stem'=>'deletions','process'=>'Deletions'));
+
+		$this->_log('Deletions Processing.');
+		$update_time = date('m/d/y H:i:s');
+
+		//load needed worksheets
+		$master_worksheet = $this->_get_worksheet($this->_type_settings['master_tab']);
+		$worksheet = $this->_get_worksheet($this->_type_settings['deletions_tab']);
+		$query = array("sq" => $this->_google_header($this->_type_settings['deletions_status_field'])." = \"\"",);
+		$listFeed = $worksheet->getListFeed($query);
+		$entries = $listFeed->getEntries();
+		$this->_log('Found '.count($entries).'.');
+		$i = 0;
+		foreach ($entries as $entry) {
+			if($process_limit > 0 && $i > $process_limit){
+				break;
+			}
+			$values = $entry->getValues();
+			$id = (int)$values[$this->_google_header($this->_type_settings['deletions_id_field'])];
+
+			if(false === wp_delete_post($id)){
+				$this->_log('Unable to delete post: '.$id.'.');
+				$status = 'error';
+			}else{
+				//update master tab
+				$args = array(
+					'sq'=>$this->_google_header($this->_type_settings['master_id'])." = $id",
+				);
+				$master_list_feed = $master_worksheet->getListFeed($args);
+				foreach($master_list_feed->getEntries() as $delete_row){
+					$delete_row->delete();
+				}
+				$status = 'deleted';
+			}
+
+			//update deletion tab
+			$deletions_tab_values = $values;
+			$deletions_tab_values += array(
+				$this->_google_header($this->_type_settings['deletions_date_field']) => $update_time,
+				$this->_google_header($this->_type_settings['deletions_status_field']) => $status,
+			);
+			$deletions_tab_values = apply_filters('google_doc_records/deletions_deletions_tab_values',$deletions_tab_values);
+			$deletions_tab_values = apply_filters('google_doc_records/deletions_deletions_tab_values_'.$this->_type,$deletions_tab_values);
+			$entry->update($deletions_tab_values);
+			$i++;
+		}
+
+		$this->_log($i.' records processed.');
 	}
 
 	/**
@@ -908,6 +1007,42 @@ class Google_Doc_Records_Admin {
 		ServiceRequestFactory::setInstance($serviceRequest);
 
 		$this->_service = new Google\Spreadsheet\SpreadsheetService();
+	}
+
+	/**
+	 * initialize log post array
+	 */
+	function _start_log(){
+		$this->_log_contents = array();
+	}
+
+	/**
+	 * add a message to log file
+	 * @param  mixed $msg string/array of messages to add
+	 */
+	function _log($msg){
+		if(is_array($msg)){
+			foreach($msg as $m){
+				$this->_log($m);
+			}
+		}
+		$this->_log_contents[] = $msg;
+	}
+
+	/**
+	 * save log file in wordpress database
+	 * @param  array  $log_entry wordpress insert post array
+	 */
+	function _save_log($log_entry = array()){
+		$log_entry += array(
+			'post_type'=>'gdrc_log',
+			'post_status'=>'private',
+			'post_title'=>'General Google Doc Record Log',
+		);
+
+		$log_entry['post_content'] = implode("\n",$this->_log_contents);
+
+		wp_insert_post($log_entry);
 	}
 
 	/**

@@ -50,6 +50,14 @@ class Google_Doc_Records_Messages{
 			'type'=>'success',
 			'content'=>'Deletions process complete for %type$s.',
 		),
+		190=>array(
+			'type'=>'success',
+			'content'=>'All process tabs (Additions, Corrections, and Deletions) complete for %type$s.',
+		),
+		195=>array(
+			'type'=>'success',
+			'content'=>'Resync process complete for %type$s.',
+		),
 		200=>array(
 			'type'=>'success',
 			'content'=>'Configuration saved for %type$s.',
