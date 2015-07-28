@@ -80,4 +80,24 @@
 		 Adjust the source, tabs and columns for this post type.
 		 </p>
 	</div>
+
+	<br>
+	<h4>Latest Logs</h4>
+	<?php
+		$logs = get_posts(array('post_type'=>'gdrc_log_'.$name,'post_status'=>'private'));
+		if(count($logs) > 0):
+	?>
+	<div class="js-accordion">
+	<?php
+		foreach($logs as $post):
+			setup_postdata( $post );
+	?>
+	<h3><?php echo $post->post_title; ?></h3>
+	<div>
+		<?php the_content(); ?>
+		<p>Run on <?php echo date('m/d/Y h:i:s a',strtotime($post->post_date)); ?></p>
+	</div>
+	<?php endforeach; wp_reset_postdata(); ?>
+	</div>
+	<?php endif;?>
 </div>

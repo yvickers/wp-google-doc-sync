@@ -533,7 +533,7 @@ class Google_Doc_Records_Admin {
 		$master_worksheet = $this->_get_worksheet($this->_type_settings['master_tab']);
 		$master_list_feed = $master_worksheet->getListFeed();
 		$entries = $master_list_feed->getEntries();
-		$this->_log('Found '.count($entries).'.');
+		$this->_log('Found '.count($entries).' records.');
 		$i = 0;
 		foreach($entries as $entry){
 			$values = $entry->getValues();
@@ -703,12 +703,9 @@ class Google_Doc_Records_Admin {
 		$query = array("sq" => $this->_google_header($this->_type_settings['additions_status_field'])." = \"\"",);
 		$listFeed = $worksheet->getListFeed($query);
 		$entries = $listFeed->getEntries();
-		$this->_log('Found '.count($entries).'.');
+		$this->_log('Found '.count($entries).' records.');
 		$i = 0;
 		foreach ($entries as $entry) {
-			if($process_limit > 0 && $i > $process_limit){
-				break;
-			}
 			$values = $entry->getValues();
 			unset($values[$this->_google_header($this->_type_settings['additions_date_field'])]);
 			unset($values[$this->_google_header($this->_type_settings['additions_status_field'])]);
@@ -758,6 +755,9 @@ class Google_Doc_Records_Admin {
 			$additions_tab_values = apply_filters('google_doc_records/additions_additions_tab_values',$additions_tab_values);
 			$additions_tab_values = apply_filters('google_doc_records/additions_additions_tab_values_'.$this->_type,$additions_tab_values);
 			$entry->update($additions_tab_values);
+			if($process_limit > 0 && $i == $process_limit){
+				break;
+			}
 			$i++;
 		}
 
@@ -801,12 +801,9 @@ class Google_Doc_Records_Admin {
 		$query = array("sq" => $this->_google_header($this->_type_settings['corrections_status_field'])." = \"\"",);
 		$listFeed = $worksheet->getListFeed($query);
 		$entries = $listFeed->getEntries();
-		$this->_log('Found '.count($entries).'.');
+		$this->_log('Found '.count($entries).' records.');
 		$i = 0;
 		foreach ($entries as $entry) {
-			if($process_limit > 0 && $i > $process_limit){
-				break;
-			}
 			$values = $entry->getValues();
 			$id = (int)$values[$this->_google_header($this->_type_settings['corrections_id_field'])];
 			unset($values[$this->_google_header($this->_type_settings['corrections_id_field'])]);
@@ -858,6 +855,9 @@ class Google_Doc_Records_Admin {
 			$corrections_tab_values = apply_filters('google_doc_records/corrections_corrections_tab_values',$corrections_tab_values);
 			$corrections_tab_values = apply_filters('google_doc_records/corrections_corrections_tab_values_'.$this->_type,$corrections_tab_values);
 			$entry->update($corrections_tab_values);
+			if($process_limit > 0 && $i == $process_limit){
+				break;
+			}
 			$i++;
 		}
 
@@ -921,12 +921,9 @@ class Google_Doc_Records_Admin {
 		$query = array("sq" => $this->_google_header($this->_type_settings['deletions_status_field'])." = \"\"",);
 		$listFeed = $worksheet->getListFeed($query);
 		$entries = $listFeed->getEntries();
-		$this->_log('Found '.count($entries).'.');
+		$this->_log('Found '.count($entries).' records.');
 		$i = 0;
 		foreach ($entries as $entry) {
-			if($process_limit > 0 && $i > $process_limit){
-				break;
-			}
 			$values = $entry->getValues();
 			$id = (int)$values[$this->_google_header($this->_type_settings['deletions_id_field'])];
 
@@ -954,6 +951,9 @@ class Google_Doc_Records_Admin {
 			$deletions_tab_values = apply_filters('google_doc_records/deletions_deletions_tab_values',$deletions_tab_values);
 			$deletions_tab_values = apply_filters('google_doc_records/deletions_deletions_tab_values_'.$this->_type,$deletions_tab_values);
 			$entry->update($deletions_tab_values);
+			if($process_limit > 0 && $i == $process_limit){
+				break;
+			}
 			$i++;
 		}
 
@@ -1227,6 +1227,7 @@ class Google_Doc_Records_Admin {
 		wp_enqueue_script('jquery');
 		wp_enqueue_script('jquery-ui-core');
 		wp_enqueue_script('jquery-ui-tabs');
+		wp_enqueue_script('jquery-ui-accordion');
 
 		wp_enqueue_script( $this->plugin_name, plugin_dir_url( __FILE__ ) . 'js/google-doc-records-admin.js', array( 'jquery' ), $this->version, false );
 

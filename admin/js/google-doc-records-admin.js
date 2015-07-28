@@ -30,6 +30,7 @@
 	 */
 
 	$(function(){
+		$(".js-accordion").accordion();
 		$(".js-tabs").tabs();
 
 		$(".js-repeater-add").click(function(){
