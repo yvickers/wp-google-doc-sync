@@ -446,10 +446,10 @@ class Google_Doc_Records_Admin {
 				$this->_additions_process();
 			break;
 			case 'corrections':
-				$this->_handle_corrections();
+				$this->_corrections_process();
 			break;
 			case 'deletions':
-				$this->_handle_deletions();
+				$this->_deletions_process();
 			break;
 			case 'resync':
 				$this->_resync();
@@ -539,6 +539,7 @@ class Google_Doc_Records_Admin {
 			$values = $entry->getValues();
 			$id = (int)$values[$this->_google_header($this->_type_settings['master_id'])];
 			unset($values[$this->_google_header($this->_type_settings['master_sync_start'])]);
+			unset($values[$this->_google_header($this->_type_settings['master_id'])]);
 
 			//apply map field for spreadsheet values
 			$wp_values = array(
@@ -556,6 +557,12 @@ class Google_Doc_Records_Admin {
 			$fxn = (isset($post_ids[$id]))? 'wp_update_post':'wp_insert_post';
 			unset($post_ids[$id]);
 
+			//start master tab values array
+			$master_tab_values = $values;
+			$master_tab_values += array(
+				$this->_google_header($this->_type_settings['master_sync_date']) => $update_time,
+			);
+
 			$post_id = $this->_wp_record($wp_values,$fxn);
 			if(is_wp_error($post_id)){
 				$this->_log('Unable to sync post: '.$id.'.');
@@ -563,14 +570,13 @@ class Google_Doc_Records_Admin {
 				$status = 'error';
 			}else{
 				$status = 'synced';
+				if('wp_insert_post' == $fxn){
+					$master_tab_values[$this->_google_header($this->_type_settings['master_id'])] = $post_id;
+				}
 			}
 
+			$master_tab_values[$this->_google_header($this->_type_settings['master_sync_status'])] = $status;
 			//update master tab
-			$master_tab_values = $values;
-			$master_tab_values += array(
-				$this->_google_header($this->_type_settings['master_sync_date']) => $update_time,
-				$this->_google_header($this->_type_settings['master_sync_status']) => $status,
-			);
 			$master_tab_values = apply_filters('google_doc_records/sync_master_tab_values',$master_tab_values);
 			$master_tab_values = apply_filters('google_doc_records/sync_master_tab_values_'.$this->_type,$master_tab_values);
 			$entry->update($master_tab_values);
@@ -624,7 +630,7 @@ class Google_Doc_Records_Admin {
 		);
 
 		foreach($fields as $field){
-			if(isset($this->_type_settings[$field]) && '' == trim($this->_type_settings[$field])){
+			if(isset($this->_type_settings[$field]) && '' !== trim($this->_type_settings[$field])){
 				continue;
 			}
 			$passes = false;
@@ -792,7 +798,7 @@ class Google_Doc_Records_Admin {
 	function _handle_corrections($process_limit = 0){
 		$this->_double_check_process_requirements(array('stem'=>'corrections','process'=>'Corrections'));
 
-		$this->_log('Conditions Processing.');
+		$this->_log('Corrections Processing.');
 		$update_time = date('m/d/y H:i:s');
 
 		//load needed worksheets
@@ -888,7 +894,7 @@ class Google_Doc_Records_Admin {
 	 * Handle deletions and direct back to main page
 	 */
 	function _deletions_process(){
-		$this->_handle_corrections();
+		$this->_handle_deletions();
 
 		$this->_save_log(array(
 			'post_type'=>substr('gdrc_log_'.$this->_type,0,20),
@@ -926,6 +932,8 @@ class Google_Doc_Records_Admin {
 		foreach ($entries as $entry) {
 			$values = $entry->getValues();
 			$id = (int)$values[$this->_google_header($this->_type_settings['deletions_id_field'])];
+			unset($values[$this->_google_header($this->_type_settings['deletions_date_field'])]);
+			unset($values[$this->_google_header($this->_type_settings['deletions_status_field'])]);
 
 			if(false === wp_delete_post($id)){
 				$this->_log('Unable to delete post: '.$id.'.');
