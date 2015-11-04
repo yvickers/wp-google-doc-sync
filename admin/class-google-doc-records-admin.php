@@ -117,6 +117,11 @@ class Google_Doc_Records_Admin {
 	 * sets up our pages - this runs before output is sent to browser
 	 */
 	public function init_page(){
+		if(isset($_POST['option_page']) && $_POST['option_page'] == $this->plugin_name.'-options-group'){
+			$this->_settings_page();
+			return;
+		}
+
 		if(!isset($_GET['page'])){
 			return;
 		}
