@@ -58,6 +58,11 @@ class Google_Doc_Records_Admin {
 			'callback'=>'_input_json_key',
 			'value'=>'',
 		),
+		'process_limit'=>array(
+			'label'=>'Process limit',
+			'callback'=>'_input_process_limit',
+			'value'=>'0',
+		),
 	);
 
 	protected $_sync_settings = false;
@@ -502,9 +507,11 @@ class Google_Doc_Records_Admin {
 	 * process all tabs within spreadsheet
 	 */
 	function _full_sync(){
-		$this->_handle_deletions();
-		$this->_handle_additions();
-		$this->_handle_corrections();
+		$process_limit = get_option($this->plugin_name.'_process_limit',$this->_options['process_limit']['value']);
+
+		$this->_handle_deletions($process_limit);
+		$this->_handle_additions($process_limit);
+		$this->_handle_corrections($process_limit);
 
 		$this->_save_log(array(
 			'post_type'=>substr('gdrc_log_'.$this->_type,0,20),
@@ -680,7 +687,7 @@ class Google_Doc_Records_Admin {
 	 * class mode to handle additions and post back results to main page
 	 */
 	function _additions_process(){
-		$this->_handle_additions();
+		$this->_handle_additions(get_option($this->plugin_name.'_process_limit',$this->_options['process_limit']['value']));
 
 		$this->_save_log(array(
 			'post_type'=>substr('gdrc_log_'.$this->_type,0,20),
@@ -766,10 +773,12 @@ class Google_Doc_Records_Admin {
 			$additions_tab_values = apply_filters('google_doc_records/additions_additions_tab_values',$additions_tab_values);
 			$additions_tab_values = apply_filters('google_doc_records/additions_additions_tab_values_'.$this->_type,$additions_tab_values);
 			$entry->update($additions_tab_values);
+
+			$i++;
+
 			if($process_limit > 0 && $i == $process_limit){
 				break;
 			}
-			$i++;
 		}
 
 		$this->_log($i.' records processed.');
@@ -779,7 +788,7 @@ class Google_Doc_Records_Admin {
 	 * Handle corrections and direct back to main page
 	 */
 	function _corrections_process(){
-		$this->_handle_corrections();
+		$this->_handle_corrections(get_option($this->plugin_name.'_process_limit',$this->_options['process_limit']['value']));
 
 		$this->_save_log(array(
 			'post_type'=>substr('gdrc_log_'.$this->_type,0,20),
@@ -866,10 +875,12 @@ class Google_Doc_Records_Admin {
 			$corrections_tab_values = apply_filters('google_doc_records/corrections_corrections_tab_values',$corrections_tab_values);
 			$corrections_tab_values = apply_filters('google_doc_records/corrections_corrections_tab_values_'.$this->_type,$corrections_tab_values);
 			$entry->update($corrections_tab_values);
+
+			$i++;
+
 			if($process_limit > 0 && $i == $process_limit){
 				break;
 			}
-			$i++;
 		}
 
 		$this->_log($i.' records processed.');
@@ -899,7 +910,7 @@ class Google_Doc_Records_Admin {
 	 * Handle deletions and direct back to main page
 	 */
 	function _deletions_process(){
-		$this->_handle_deletions();
+		$this->_handle_deletions(get_option($this->plugin_name.'_process_limit',$this->_options['process_limit']['value']));
 
 		$this->_save_log(array(
 			'post_type'=>substr('gdrc_log_'.$this->_type,0,20),
@@ -964,10 +975,12 @@ class Google_Doc_Records_Admin {
 			$deletions_tab_values = apply_filters('google_doc_records/deletions_deletions_tab_values',$deletions_tab_values);
 			$deletions_tab_values = apply_filters('google_doc_records/deletions_deletions_tab_values_'.$this->_type,$deletions_tab_values);
 			$entry->update($deletions_tab_values);
+
+			$i++;
+
 			if($process_limit > 0 && $i == $process_limit){
 				break;
 			}
-			$i++;
 		}
 
 		$this->_log($i.' records processed.');
@@ -1204,6 +1217,7 @@ class Google_Doc_Records_Admin {
 			return;
 		}
 
+		wp_enqueue_style( $this->plugin_name.'-admin-ui-css','http://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/themes/redmond/jquery-ui.css',false,PLUGIN_VERSION,false);
 		wp_enqueue_style( $this->plugin_name, plugin_dir_url( __FILE__ ) . 'css/google-doc-records-admin.css', array(), $this->version, 'all' );
 		wp_enqueue_style( 'prefix-font-awesome', '//maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css', array(), '4.3.0' );
 		wp_enqueue_style( 'prefix-bootstrap', '//maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css', array(), '3.3.5' );
